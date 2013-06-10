@@ -1,0 +1,14 @@
+Changes
+lib/HTML/LandingPages.pm
+lib/HTML/LandingPages/Entity.pm
+lib/HTML/LandingPages/HtmlForm.pm
+lib/HTML/LandingPages/Javascript.pm
+lib/HTML/LandingPages/Records.pm
+lib/HTML/LandingPages/Template.pm
+Makefile.PL
+MANIFEST			This list of files
+README
+t/00-load.t
+t/manifest.t
+t/pod-coverage.t
+t/pod.t
