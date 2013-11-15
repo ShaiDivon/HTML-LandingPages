@@ -1,141 +1,120 @@
 package HTML::LandingPages::Template;
-
-use 5.006;
 use strict;
-use warnings FATAL => 'all';
+use Carp;
 
-=head1 NAME
+use HTML::LandingPages::Entity;
+our @ISA = qw(HTML::LandingPages::Entity); 
 
-HTML::LandingPages::Template - The great new HTML::LandingPages::Template!
-
-=head1 VERSION
-
-Version 0.01
-
-=cut
-
-our $VERSION = '0.01';
-
-
-=head1 SYNOPSIS
-
-Quick summary of what the module does.
-
-Perhaps a little code snippet.
-
-    use HTML::LandingPages::Template;
-
-    my $foo = HTML::LandingPages::Template->new();
-    ...
-
-=head1 EXPORT
-
-A list of functions that can be exported.  You can delete this section
-if you don't export anything, such as for a purely object-oriented module.
-
-=head1 SUBROUTINES/METHODS
-
-=head2 function1
-
-=cut
-
-sub function1 {
+sub new {
+    my $class=shift;
+    my $self = bless _setTemplates(shift),$class;
+	return $self;
 }
 
-=head2 function2
-
-=cut
-
-sub function2 {
+sub pickTemplate {
+	my $self=shift;
+    my ($lowLimit,$intRandomNumber)=(0,int(100*rand));
+	my @randTemplate = grep {  
+		my $picked = ($intRandomNumber >= $lowLimit) &&  ($intRandomNumber <  $lowLimit + $_->{percent}) ; 
+		$lowLimit+=$_->{percent}; 
+		$picked;
+		} @$self;
+	return $randTemplate[0];
 }
 
-=head1 AUTHOR
 
-Shai Divon, C<< <shaidivon at gmail.com> >>
-
-=head1 BUGS
-
-Please report any bugs or feature requests to C<bug-html-landingpages at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=HTML-LandingPages>.  I will be notified, and then you'll
-automatically be notified of progress on your bug as I make changes.
-
-
-
-
-=head1 SUPPORT
-
-You can find documentation for this module with the perldoc command.
-
-    perldoc HTML::LandingPages::Template
-
-
-You can also look for information at:
-
-=over 4
-
-=item * RT: CPAN's request tracker (report bugs here)
-
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=HTML-LandingPages>
-
-=item * AnnoCPAN: Annotated CPAN documentation
-
-L<http://annocpan.org/dist/HTML-LandingPages>
-
-=item * CPAN Ratings
-
-L<http://cpanratings.perl.org/d/HTML-LandingPages>
-
-=item * Search CPAN
-
-L<http://search.cpan.org/dist/HTML-LandingPages/>
-
-=back
+sub _setTemplates {
+	my $templates =shift;
+	if (ref $templates eq 'ARRAY') {
+	return _percentNormalized([ map {
+		ref $templates->[$_] eq 'HASH' ? {
+			name => $templates->[$_]->{name} || 'template'.(1+$_),
+			path    => $templates->[$_]->{path} || undef , 
+			h1 => $templates->[$_]->{h1},
+			title => $templates->[$_]->{title},
+			body =>$templates->[$_]->{body},
+			percent  => $templates->[$_]->{percent} } : {path=> $templates->[$_], percent=>0}} (0..$#{$templates})
+		]);
+    } elsif (ref $templates eq 'HASH') {
+		return [{
+			name=> $templates->{name},
+			path=>$templates->{path},
+			percent=>$templates->{percent}||100,
+			h1=>$templates->{h1},
+			title=>$templates->{title},
+			}]
+	}
+	else { 
+		return [
+		{
+		path=>undef,
+		percent=>100,
+		h1=>undef, 
+		title=>undef, 
+		name=> 'default'
+		}
+		]
+	}   
+}
 
 
-=head1 ACKNOWLEDGEMENTS
+sub _percentNormalized {
+    my $templates=shift; 
+    my ($totalpercent, $percentLessCounter) = (0,0);  
+	foreach (0..$#$templates) {
+		my $percent  = $templates->[$_]->{percent} ;
+		$percentLessCounter++ unless $percent;
+		$totalpercent += $percent;
+	};
+	my $percentLeft = $totalpercent > 100 ? 0 : 100-$totalpercent;
+	my $avgPerTemplate  = $percentLessCounter ? $percentLeft / $percentLessCounter : 0;
+	my $factor = $avgPerTemplate ? 1 : $totalpercent ? 100 / $totalpercent  : 1;
+	$templates->[$_]->{percent} =  $templates->[$_]->{percent} ?  $templates->[$_]->{percent} *  $factor : $avgPerTemplate
+		foreach (0..$#$templates);
+    return $templates;
 
+}
 
-=head1 LICENSE AND COPYRIGHT
+sub renderDefault {
+	my ($self,$templateData)=@_;
+	return <<HTML;
+<!DOCTYPE html>
+<html>
+	<head>
+	  <meta charset="utf-8" />
+		<title>$templateData->{title}</title>  
+		<meta name="keywords" content="$templateData->{keywords}" />
+		<meta name="description" content="$templateData->{description}" />
+		<meta name="robots" content="$templateData->{robots}" />
+		<meta http-equiv='Content-Type' content='text/html; charset=utf-8' />
+	  
+		<style type="text/css">
+			input{display:block;margin-bottom:6px;}
+			input.submit{margin-bottom:15px;position:relative;left:25px;}
+			label{width:70px;float:left;text-align:right;margin-right:30px;}
+		</style>
+	</head>
+	<body>
+		<div style="width:645px;margin:20px auto 0;box-shadow: 0px 0px 5px;background:#fffff;">
+		<div style="padding:30px;overflow:hidden;">
+		<h1>$templateData->{h1}</h1>
+		<div style="height:1px;border-bottom:1px dotted;margin:10px 0 20px;">&nbsp;</div>
+		$templateData->{body}
+		<div>
+			<p>please complite the form bellow:</p>
+			__LANDINGFORM__
+		</div>
+		<div style="font-size:11px;text-align:center;">HTML::LandingPages</div>
+		</div>
+		</div>
+	</body>
+</html> 
+HTML
+}
 
-Copyright 2013 Shai Divon.
+sub DESTROY()
+{
+}
+ 
 
-This program is free software; you can redistribute it and/or modify it
-under the terms of the the Artistic License (2.0). You may obtain a
-copy of the full license at:
-
-L<http://www.perlfoundation.org/artistic_license_2_0>
-
-Any use, modification, and distribution of the Standard or Modified
-Versions is governed by this Artistic License. By using, modifying or
-distributing the Package, you accept this license. Do not use, modify,
-or distribute the Package, if you do not accept this license.
-
-If your Modified Version has been derived from a Modified Version made
-by someone other than you, you are nevertheless required to ensure that
-your Modified Version complies with the requirements of this license.
-
-This license does not grant you the right to use any trademark, service
-mark, tradename, or logo of the Copyright Holder.
-
-This license includes the non-exclusive, worldwide, free-of-charge
-patent license to make, have made, use, offer to sell, sell, import and
-otherwise transfer the Package with respect to any patent claims
-licensable by the Copyright Holder that are necessarily infringed by the
-Package. If you institute patent litigation (including a cross-claim or
-counterclaim) against any party alleging that the Package constitutes
-direct or contributory patent infringement, then this Artistic License
-to you shall terminate on the date that such litigation is filed.
-
-Disclaimer of Warranty: THE PACKAGE IS PROVIDED BY THE COPYRIGHT HOLDER
-AND CONTRIBUTORS "AS IS' AND WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES.
-THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
-PURPOSE, OR NON-INFRINGEMENT ARE DISCLAIMED TO THE EXTENT PERMITTED BY
-YOUR LOCAL LAW. UNLESS REQUIRED BY LAW, NO COPYRIGHT HOLDER OR
-CONTRIBUTOR WILL BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, OR
-CONSEQUENTIAL DAMAGES ARISING IN ANY WAY OUT OF THE USE OF THE PACKAGE,
-EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-
-=cut
-
-1; # End of HTML::LandingPages::Template
+1;
